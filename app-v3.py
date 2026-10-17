@@ -12,7 +12,7 @@ DATA_FILE = "pedidos_data.json"
 COSTO_ENVIO = 15
 
 st.title("🌮 Lonchería Muñe - Sabor Casero")
-st.caption("📍 Calle 13 de Junio #97 | 📞 Tel: 3757584146")
+st.caption("📍 Calle 13 de Junio #97, San Antonio Matute | 📞 Tel: 3757584146")
 st.info("⏰ Horario: Sábados y Domingos a partir de las 6:00 PM")
 
 # ---------------------------------------------------------
@@ -139,7 +139,7 @@ def generar_html_ticket(p):
     <div id="ticket-{folio}" style="font-family: 'Courier New', Courier, monospace; width: 280px; padding: 12px; border: 1px dashed #333; background-color: #fff; color: #000; margin: 0 auto; border-radius: 4px;">
         <h3 style="text-align: center; margin: 0; font-size: 16px;">🌮 LONCHERÍA MUÑE</h3>
         <p style="text-align: center; font-size: 11px; margin: 2px 0; font-weight: bold;">Sabor Casero</p>
-        <p style="text-align: center; font-size: 10px; margin: 2px 0;">📍 Calle 13 de Junio #97<br>📞 Tel: 3757584146</p>
+        <p style="text-align: center; font-size: 10px; margin: 2px 0;">📍 Calle 13 de Junio #97, San Antonio Matute<br>📞 Tel: 3757584146</p>
         <hr style="border-top: 1px dashed #000; margin: 6px 0;">
         <p style="font-size: 12px; margin: 2px 0;"><b>FOLIO:</b> #{folio}</p>
         <p style="font-size: 11px; margin: 2px 0;"><b>FECHA:</b> {fecha}</p>
@@ -469,8 +469,16 @@ elif modo == "👑 Panel Propietario":
 
         # TAB 2: PUNTO DE VENTA (POS)
         with tab2:
-            st.markdown("### 🖥️ Punto de Venta (POS para Pedidos en el Local)")
-            st.caption("Al guardar el pedido, la pantalla se limpiará automáticamente para registrar el siguiente inmediatamente.")
+            col_pos_head1, col_pos_head2 = st.columns([2, 1])
+            with col_pos_head1:
+                st.markdown("### 🖥️ Punto de Venta (POS Local)")
+            with col_pos_head2:
+                if st.button("🔄 Comenzar Nuevo Pedido", key="btn_reset_pos_top", use_container_width=True, type="primary"):
+                    st.session_state.num_ordenes_pos = 1
+                    st.session_state.pos_version += 1
+                    st.rerun()
+
+            st.caption("Usa este botón o guarda la orden actual para iniciar un nuevo pedido en el local.")
 
             v_pos = st.session_state.pos_version
 
@@ -608,7 +616,12 @@ elif modo == "👑 Panel Propietario":
                         st.session_state.pos_version += 1
                         
                         st.balloons()
-                        st.success(f"🎉 ¡Pedido POS registrado con Folio #{folio_pos}! Pantalla lista para la siguiente orden.")
+                        st.success(f"🎉 ¡Pedido POS registrado con Folio #{folio_pos}!")
+                        
+                        if st.button("➕ Limpiar pantalla y comenzar otro pedido nuevo", key=f"btn_next_pos_{folio_pos}", type="primary", use_container_width=True):
+                            st.session_state.num_ordenes_pos = 1
+                            st.session_state.pos_version += 1
+                            st.rerun()
                         
                         with st.expander(f"🖨️ Imprimir Ticket de Venta POS (Folio #{folio_pos})", expanded=True):
                             components.html(generar_html_ticket(pedido_pos), height=440, scrolling=True)
