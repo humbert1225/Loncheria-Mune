@@ -4,7 +4,7 @@ import urllib.parse
 
 st.set_page_config(page_title="Lonchería Muñe - Pedidos por WhatsApp", page_icon="🌮", layout="centered")
 
-WHATSAPP_NUMERO = "523751268251"
+WHATSAPP_NUMERO = "523751209953"
 CLAVE_ADMIN = "mune2402"
 
 st.title("🌮 Lonchería Muñe - Sabor Casero")
