@@ -83,7 +83,7 @@ modo = st.sidebar.radio("Navegación", ["🛍️ Hacer Pedido (Cliente)", "👑 
 # ---------------------------------------------------------
 if modo == "🛍️ Hacer Pedido (Cliente)":
     st.subheader("1. Arma tu pedido por orden(es)")
-    st.caption("💡 Puedes dividir el pedido en varias órdenes para distintas personas (ej: Orden 1, Orden 2, Orden 3).")
+    st.caption("💡 Haz clic en cada categoría para desplegar los platillos disponibles.")
 
     col_btn1, col_btn2 = st.columns([1, 1])
     with col_btn1:
@@ -105,38 +105,39 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
             items_esta_orden = []
             total_esta_orden = 0
             
+            # Categorías contraíbles
             for cat, prods in st.session_state.menu_data.items():
-                st.markdown(f"**{cat}**")
-                for prod in prods:
-                    nombre_p = prod["nombre"]
-                    precio_p = prod["precio"]
-                    disp = prod["disponible"]
-                    
-                    key_id = f"cli_ord_{ord_idx}_{cat}_{nombre_p}"
-                    
-                    if not disp:
-                        st.caption(f"❌ {nombre_p} - (AGOTADO)")
-                    else:
-                        cant = st.number_input(
-                            f"{nombre_p} (${precio_p} MXN c/u)",
-                            min_value=0, max_value=20, value=0,
-                            key=key_id
-                        )
-                        if cant > 0:
-                            subtotal = cant * precio_p
-                            if cat in ["Especialidades", "Bebidas"]:
-                                desc = f"{cant}x {nombre_p}"
-                            else:
-                                cat_label = cat.rstrip("s")
-                                desc = f"{cant}x {cat_label} de {nombre_p}"
-                            
-                            items_esta_orden.append({
-                                "descripcion": desc,
-                                "subtotal": subtotal,
-                                "cantidad": cant
-                            })
-                            total_esta_orden += subtotal
-                            total_articulos_general += cant
+                with st.expander(f"📌 {cat}", expanded=False):
+                    for prod in prods:
+                        nombre_p = prod["nombre"]
+                        precio_p = prod["precio"]
+                        disp = prod["disponible"]
+                        
+                        key_id = f"cli_ord_{ord_idx}_{cat}_{nombre_p}"
+                        
+                        if not disp:
+                            st.caption(f"❌ {nombre_p} - (AGOTADO)")
+                        else:
+                            cant = st.number_input(
+                                f"{nombre_p} (${precio_p} MXN c/u)",
+                                min_value=0, max_value=20, value=0,
+                                key=key_id
+                            )
+                            if cant > 0:
+                                subtotal = cant * precio_p
+                                if cat in ["Especialidades", "Bebidas"]:
+                                    desc = f"{cant}x {nombre_p}"
+                                else:
+                                    cat_label = cat.rstrip("s")
+                                    desc = f"{cant}x {cat_label} de {nombre_p}"
+                                
+                                items_esta_orden.append({
+                                    "descripcion": desc,
+                                    "subtotal": subtotal,
+                                    "cantidad": cant
+                                })
+                                total_esta_orden += subtotal
+                                total_articulos_general += cant
             
             nota_orden = st.text_input(
                 f"📝 Detalles / Especificaciones para la Orden #{ord_idx} (ej: sin salsa verde, cebolla aparte, bien dorado)",
@@ -191,7 +192,6 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
             elif tipo_entrega == "🛵 Enviar a domicilio" and not domicilio.strip():
                 st.error("❌ El domicilio de entrega es un requisito obligatorio para envíos a domicilio.")
             else:
-                # Asignar Folio Único Interno
                 folio_asignado = st.session_state.contador_folio
                 st.session_state.contador_folio += 1
 
@@ -351,38 +351,39 @@ elif modo == "👑 Panel Propietario":
                     items_esta_orden = []
                     total_esta_orden = 0
                     
+                    # Categorías contraíbles
                     for cat, prods in st.session_state.menu_data.items():
-                        st.markdown(f"**{cat}**")
-                        for prod in prods:
-                            nombre_p = prod["nombre"]
-                            precio_p = prod["precio"]
-                            disp = prod["disponible"]
-                            
-                            key_id = f"pos_ord_{ord_idx}_{cat}_{nombre_p}"
-                            
-                            if not disp:
-                                st.caption(f"❌ {nombre_p} - (AGOTADO)")
-                            else:
-                                cant = st.number_input(
-                                    f"{nombre_p} (${precio_p} MXN)",
-                                    min_value=0, max_value=20, value=0,
-                                    key=key_id
-                                )
-                                if cant > 0:
-                                    subtotal = cant * precio_p
-                                    if cat in ["Especialidades", "Bebidas"]:
-                                        desc = f"{cant}x {nombre_p}"
-                                    else:
-                                        cat_label = cat.rstrip("s")
-                                        desc = f"{cant}x {cat_label} de {nombre_p}"
-                                    
-                                    items_esta_orden.append({
-                                        "descripcion": desc,
-                                        "subtotal": subtotal,
-                                        "cantidad": cant
-                                    })
-                                    total_esta_orden += subtotal
-                                    total_pos_articulos += cant
+                        with st.expander(f"📌 {cat}", expanded=False):
+                            for prod in prods:
+                                nombre_p = prod["nombre"]
+                                precio_p = prod["precio"]
+                                disp = prod["disponible"]
+                                
+                                key_id = f"pos_ord_{ord_idx}_{cat}_{nombre_p}"
+                                
+                                if not disp:
+                                    st.caption(f"❌ {nombre_p} - (AGOTADO)")
+                                else:
+                                    cant = st.number_input(
+                                        f"{nombre_p} (${precio_p} MXN)",
+                                        min_value=0, max_value=20, value=0,
+                                        key=key_id
+                                    )
+                                    if cant > 0:
+                                        subtotal = cant * precio_p
+                                        if cat in ["Especialidades", "Bebidas"]:
+                                            desc = f"{cant}x {nombre_p}"
+                                        else:
+                                            cat_label = cat.rstrip("s")
+                                            desc = f"{cant}x {cat_label} de {nombre_p}"
+                                        
+                                        items_esta_orden.append({
+                                            "descripcion": desc,
+                                            "subtotal": subtotal,
+                                            "cantidad": cant
+                                        })
+                                        total_esta_orden += subtotal
+                                        total_pos_articulos += cant
                     
                     nota_orden_pos = st.text_input(
                         f"📝 Detalles / Especificaciones para la Orden POS #{ord_idx} (ej: sin salsa verde, sin cebolla)",
@@ -403,7 +404,7 @@ elif modo == "👑 Panel Propietario":
             st.divider()
 
             if total_pos_articulos == 0:
-                st.info("💡 Selecciona los productos de la orden arriba para continuar.")
+                st.info("💡 Selecciona los productos desplegando las categorías arriba.")
             else:
                 st.success(f"🛒 **Total del Pedido POS: ${total_pos_general} MXN** ({total_pos_articulos} artículos)")
 
@@ -442,7 +443,7 @@ elif modo == "👑 Panel Propietario":
             st.caption("Si un producto se termina, desactiva el interruptor 'Disponible' para que aparezca como AGOTADO para los clientes.")
 
             for cat, prods in st.session_state.menu_data.items():
-                with st.expander(f"📌 Categoría: {cat}", expanded=True):
+                with st.expander(f"📌 Categoría: {cat}", expanded=False):
                     for idx, prod in enumerate(prods):
                         c_nom, c_prec, c_disp = st.columns([2, 1, 1])
                         with c_nom:
