@@ -383,6 +383,19 @@ elif modo == "👑 Panel Propietario":
                 c1.metric("Pedidos Recibidos Hoy", len(pedidos_lista))
                 c2.metric("Venta Acumulada", f"${total_acumulado} MXN")
 
+                st.write("")
+                with st.expander("🗑️ Limpiar / Borrar Todos los Pedidos del Día", expanded=False):
+                    st.warning("⚠️ Esta acción borrará permanentemente todos los pedidos registrados en el sistema.")
+                    clave_limpieza = st.text_input("Ingresa la clave de propietario para confirmar:", type="password", key="pwd_limpiar_pedidos")
+                    if st.button("🚨 Confirmar y Borrar Pedidos", type="primary", key="btn_confirmar_limpieza"):
+                        if clave_limpieza == CLAVE_ADMIN:
+                            db_fresca["pedidos"] = []
+                            guardar_db(db_fresca)
+                            st.success("🎉 ¡Todos los pedidos han sido eliminados con éxito!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Clave de propietario incorrecta. No se borraron los pedidos.")
+
                 st.divider()
 
                 for idx, p in enumerate(reversed(pedidos_lista)):
