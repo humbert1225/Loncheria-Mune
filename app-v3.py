@@ -277,7 +277,16 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
             
             domicilio = ""
             if "Enviar a domicilio" in tipo_entrega:
-                domicilio = st.text_input("Domicilio de entrega (Calle, Número, Colonia) *")
+                st.markdown("**Datos del Domicilio de Entrega:**")
+                col_d1, col_d2, col_d3 = st.columns([2, 1, 1])
+                with col_d1:
+                    calle = st.text_input("Nombre de la calle *", key="cli_calle")
+                with col_d2:
+                    num_ext = st.text_input("Número exterior *", key="cli_num_ext")
+                with col_d3:
+                    num_int = st.text_input("Número interior (Opcional)", key="cli_num_int")
+                
+                domicilio = f"Calle {calle.strip()} #{num_ext.strip()}" + (f" Int. {num_int.strip()}" if num_int.strip() else "")
             else:
                 st.info("ℹ️ Recogerás tu pedido directamente en el local.")
 
@@ -290,8 +299,8 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
                 st.error("❌ El nombre es un requisito obligatorio.")
             elif not telefono.strip():
                 st.error("❌ El número de teléfono es un requisito obligatorio.")
-            elif "Enviar a domicilio" in tipo_entrega and not domicilio.strip():
-                st.error("❌ El domicilio de entrega es un requisito obligatorio para envíos a domicilio.")
+            elif "Enviar a domicilio" in tipo_entrega and (not calle.strip() or not num_ext.strip()):
+                st.error("❌ El nombre de la calle y el número exterior son requisitos obligatorios para envíos a domicilio.")
             else:
                 db_actual = cargar_db()
                 folio_asignado = db_actual.get("contador_folio", 1001)
@@ -574,7 +583,16 @@ elif modo == "👑 Panel Propietario":
                     telefono_pos = st.text_input("Número de teléfono de contacto (Opcional)")
                     domicilio_pos = ""
                     if "Enviar a domicilio" in tipo_entrega_pos:
-                        domicilio_pos = st.text_input("Domicilio de entrega *")
+                        st.markdown("**Datos del Domicilio de Entrega:**")
+                        col_pd1, col_pd2, col_pd3 = st.columns([2, 1, 1])
+                        with col_pd1:
+                            calle_pos = st.text_input("Nombre de la calle *", key=f"pos_v{v_pos}_calle")
+                        with col_pd2:
+                            num_ext_pos = st.text_input("Número exterior *", key=f"pos_v{v_pos}_num_ext")
+                        with col_pd3:
+                            num_int_pos = st.text_input("Número interior (Opcional)", key=f"pos_v{v_pos}_num_int")
+                        
+                        domicilio_pos = f"Calle {calle_pos.strip()} #{num_ext_pos.strip()}" + (f" Int. {num_int_pos.strip()}" if num_int_pos.strip() else "")
                     
                     notas_pos = st.text_area("Instrucciones generales de cocina (Opcional)")
 
@@ -583,8 +601,8 @@ elif modo == "👑 Panel Propietario":
                 if guardar_pos:
                     if not nombre_pos.strip():
                         st.error("❌ El nombre o referencia del cliente es obligatorio.")
-                    elif "Enviar a domicilio" in tipo_entrega_pos and not domicilio_pos.strip():
-                        st.error("❌ El domicilio es obligatorio para envíos a domicilio.")
+                    elif "Enviar a domicilio" in tipo_entrega_pos and (not calle_pos.strip() or not num_ext_pos.strip()):
+                        st.error("❌ La calle y número exterior son obligatorios para envíos a domicilio.")
                     else:
                         db_actual = cargar_db()
                         folio_pos = db_actual.get("contador_folio", 1001)
