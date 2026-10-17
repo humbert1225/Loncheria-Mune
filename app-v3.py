@@ -7,13 +7,12 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Lonchería Muñe - Pedidos y POS", page_icon="🌮", layout="centered")
 
-WHATSAPP_NUMERO = "523751209953"
-CLAVE_ADMIN = "13junio97"
+CLAVE_ADMIN = "mune2402"
 DATA_FILE = "pedidos_data.json"
 COSTO_ENVIO = 15
 
 st.title("🌮 Lonchería Muñe - Sabor Casero")
-st.caption("📍 Calle 13 de Junio #97 | 📞 Tel: 3757584146 | 💬 WhatsApp: 3751209953")
+st.caption("📍 Calle 13 de Junio #97 | 📞 Tel: 3757584146")
 st.info("⏰ Horario: Sábados y Domingos a partir de las 6:00 PM")
 
 # ---------------------------------------------------------
@@ -21,7 +20,6 @@ st.info("⏰ Horario: Sábados y Domingos a partir de las 6:00 PM")
 # ---------------------------------------------------------
 def get_jornada_actual():
     now = datetime.now()
-    # Si la hora actual es antes de las 2:00 AM (00:00 - 01:59), pertenece a la jornada de ayer
     if now.hour < 2:
         jornada_fecha = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     else:
@@ -91,7 +89,6 @@ def cargar_db():
     else:
         db_data = default_db
 
-    # Borrado automático de pedidos al cambiar de jornada (después de las 2:00 AM)
     jornada_hoy = get_jornada_actual()
     if db_data.get("ultima_jornada") != jornada_hoy:
         pedidos_filtrados = [
@@ -131,7 +128,7 @@ def generar_html_ticket(p):
             filas_ordenes += f'<div style="font-size:11px; font-style:italic; color:#555;">Detalle: {ord_d["nota"]}</div>'
 
     html_domicilio = ""
-    if tipo_entrega == "🛵 Enviar a domicilio" and domicilio and domicilio != "Recoger en local":
+    if "Enviar a domicilio" in tipo_entrega and domicilio and domicilio != "Recoger en local":
         html_domicilio = f'<p style="font-size:12px; margin:2px 0;"><b>DOMICILIO:</b> {domicilio}</p>'
 
     html_envio = ""
@@ -141,8 +138,8 @@ def generar_html_ticket(p):
     html_code = f"""
     <div id="ticket-{folio}" style="font-family: 'Courier New', Courier, monospace; width: 280px; padding: 12px; border: 1px dashed #333; background-color: #fff; color: #000; margin: 0 auto; border-radius: 4px;">
         <h3 style="text-align: center; margin: 0; font-size: 16px;">🌮 LONCHERÍA MUÑE</h3>
-        <p style="text-align: center; font-size: 11px; margin: 2px 0;">Sabor Casero</p>
-        <p style="text-align: center; font-size: 10px; margin: 2px 0;">Calle 13 de Junio #97<br>Tel: 3757584146 | WA: 3751209953</p>
+        <p style="text-align: center; font-size: 11px; margin: 2px 0; font-weight: bold;">Sabor Casero</p>
+        <p style="text-align: center; font-size: 10px; margin: 2px 0;">📍 Calle 13 de Junio #97<br>📞 Tel: 3757584146</p>
         <hr style="border-top: 1px dashed #000; margin: 6px 0;">
         <p style="font-size: 12px; margin: 2px 0;"><b>FOLIO:</b> #{folio}</p>
         <p style="font-size: 11px; margin: 2px 0;"><b>FECHA:</b> {fecha}</p>
@@ -157,7 +154,7 @@ def generar_html_ticket(p):
         {html_envio}
         <h4 style="margin: 6px 0 2px 0; text-align: right; font-size: 14px;">TOTAL: ${total_general} MXN</h4>
         <hr style="border-top: 1px dashed #000; margin: 6px 0;">
-        <p style="text-align: center; font-size: 11px; margin: 6px 0 0 0;">¡Gracias por su preferencia!</p>
+        <p style="text-align: center; font-size: 11px; margin: 6px 0 0 0; font-weight: bold;">¡Gracias por su preferencia!</p>
     </div>
     <div style="text-align: center; margin-top: 8px;">
         <button onclick="window.print()" style="background-color: #2e7d32; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer;">
@@ -293,7 +290,7 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
 
             notas_generales = st.text_area("Instrucciones generales o notas adicionales (Opcional)", placeholder="Ej: Timbre blanco, aviso previo...")
 
-            confirmar = st.form_submit_button("🚀 Confirmar y Enviar por WhatsApp")
+            confirmar = st.form_submit_button("🚀 Confirmar y Enviar Pedido", type="primary")
 
         if confirmar:
             if not nombre.strip():
@@ -330,44 +327,11 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
                 db_actual["pedidos"].append(pedido_completo)
                 guardar_db(db_actual)
 
-                tipo_ent_label = "🛵 Enviar a domicilio" if "Enviar a domicilio" in tipo_entrega else "🏪 Recoger en el local"
-                msg = f"🌮 *NUEVO PEDIDO - LONCHERÍA MUÑE*\n\n"
-                msg += f"🛵 *Tipo de Entrega:* {tipo_ent_label}\n"
-                msg += f"👤 *Cliente:* {nombre.strip()}\n"
-                msg += f"📞 *Teléfono:* {telefono.strip()}\n"
-                
-                if "Enviar a domicilio" in tipo_entrega:
-                    msg += f"🏠 *Domicilio:* {domicilio.strip()}\n"
-
-                msg += "\n"
-
-                for ord_data in ordenes_construidas:
-                    msg += f"📦 *ORDEN #{ord_data['num_orden']}:*\n"
-                    for it in ord_data["items"]:
-                        msg += f"• {it['descripcion']} = *${it['subtotal']} MXN*\n"
-                    if ord_data["nota"]:
-                        msg += f"📌 *Detalles:* {ord_data['nota']}\n"
-                    msg += "\n"
-
-                if costo_envio > 0:
-                    msg += f"🍔 *Subtotal platillos:* *${subtotal_platillos_general} MXN*\n"
-                    msg += f"🛵 *Envío a domicilio:* *$15 MXN*\n"
-                
-                msg += f"💰 *TOTAL A PAGAR:* *${total_general} MXN*\n"
-                if notas_generales.strip():
-                    msg += f"\n📌 *Instrucciones generales:* {notas_generales.strip()}"
-
-                msg_encoded = urllib.parse.quote(msg)
-                wa_base = "https://" + "wa.me/" + WHATSAPP_NUMERO + "?text=" + msg_encoded
-
                 st.balloons()
-                st.success(f"🎉 ¡Pedido registrado exitosamente con Folio #{folio_asignado}!")
+                st.success(f"🎉 ¡Tu pedido ha sido registrado con éxito en Lonchería Muñe con el Folio #{folio_asignado}!")
 
-                st.markdown("### 📲 Envía tu pedido a WhatsApp")
-                st.link_button("💬 ENVIAR PEDIDO A WHATSAPP (3751209953)", wa_base, type="primary", use_container_width=True)
-
-                with st.expander("🖨️ Ver Ticket de Venta", expanded=True):
-                    components.html(generar_html_ticket(pedido_completo), height=420, scrolling=True)
+                st.subheader("📄 Ticket de Tu Pedido")
+                components.html(generar_html_ticket(pedido_completo), height=440, scrolling=True)
 
 # ---------------------------------------------------------
 # VISTA 2: PANEL PROPIETARIO / POS
@@ -454,10 +418,6 @@ elif modo == "👑 Panel Propietario":
 
                         if p.get("telefono"):
                             st.write(f"📞 **Teléfono:** [{p['telefono']}](tel:{p['telefono']})")
-                            tel_clean = "".join(filter(str.isdigit, p['telefono']))
-                            if len(tel_clean) == 10:
-                                tel_clean = "52" + tel_clean
-                            st.link_button("💬 Contactar por WhatsApp", "https://" + "wa.me/" + tel_clean)
 
                         if p.get("tipo_entrega") == "🛵 Enviar a domicilio" or (p.get("domicilio") and p.get("domicilio") not in ["Recoger en local", "Atención en Local"]):
                             st.write(f"🏠 **Domicilio:** {p['domicilio']}")
@@ -488,8 +448,9 @@ elif modo == "👑 Panel Propietario":
                         if p.get("notas_generales"):
                             st.write(f"**Instrucciones generales:** {p['notas_generales']}")
 
-                        with st.expander(f"🖨️ Ver / Imprimir Ticket del Folio #{fol_id}", expanded=False):
-                            components.html(generar_html_ticket(p), height=420, scrolling=True)
+                        # OPCIÓN DE IMPRIMIR TICKET EN CADA PEDIDO DEL PANEL PROPIETARIO
+                        with st.expander(f"🖨️ Opción de Imprimir Ticket (Folio #{fol_id})", expanded=False):
+                            components.html(generar_html_ticket(p), height=440, scrolling=True)
 
                         st.divider()
 
@@ -635,17 +596,21 @@ elif modo == "👑 Panel Propietario":
                         
                         st.balloons()
                         st.success(f"🎉 ¡Pedido POS registrado con Folio #{folio_pos}! Pantalla lista para la siguiente orden.")
-                        st.rerun()
+                        
+                        with st.expander(f"🖨️ Imprimir Ticket de Venta POS (Folio #{folio_pos})", expanded=True):
+                            components.html(generar_html_ticket(pedido_pos), height=440, scrolling=True)
 
-        # TAB 3: PRECIOS Y DISPONIBILIDAD
+        # TAB 3: PRECIOS, DISPONIBILIDAD Y ELIMINAR PRODUCTOS
         with tab3:
-            st.markdown("### 🏷️ Modificar Precios y Disponibilidad (Agotado/Disponible)")
-            st.caption("Si un producto se termina, desactiva el interruptor 'Disponible' para que aparezca como AGOTADO para los clientes.")
+            st.markdown("### 🏷️ Modificar Precios, Disponibilidad y Eliminar Productos")
+            st.caption("Ajusta precios, marca productos como AGOTADOS o elimínalos del menú definitivamente.")
 
             for cat, prods in db["menu"].items():
                 with st.expander(f"📌 Categoría: {cat}", expanded=True):
+                    if not prods:
+                        st.info("No hay productos en esta categoría.")
                     for idx, prod in enumerate(prods):
-                        c_nom, c_prec, c_disp = st.columns([2, 1, 1])
+                        c_nom, c_prec, c_disp, c_del = st.columns([2, 1, 1, 1])
                         with c_nom:
                             st.write(f"**{prod['nombre']}**")
                         with c_prec:
@@ -657,6 +622,14 @@ elif modo == "👑 Panel Propietario":
                         with c_disp:
                             disp_state = st.toggle("Disponible", value=prod["disponible"], key=f"d_{cat}_{idx}")
                             prod["disponible"] = disp_state
+                        with c_del:
+                            if st.button("🗑️ Eliminar", key=f"del_{cat}_{idx}"):
+                                db_actual = cargar_db()
+                                # Filtrar el producto a eliminar por nombre
+                                db_actual["menu"][cat] = [p for p in db_actual["menu"][cat] if p["nombre"] != prod["nombre"]]
+                                guardar_db(db_actual)
+                                st.success(f"¡Producto '{prod['nombre']}' eliminado de {cat}!")
+                                st.rerun()
 
             if st.button("💾 Guardar Cambios de Precios y Disponibilidad", type="primary"):
                 guardar_db(db)
