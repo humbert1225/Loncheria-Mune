@@ -4,6 +4,7 @@ import urllib.parse
 import json
 import os
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Lonchería Muñe - Pedidos y POS", page_icon="🌮", layout="centered")
 
@@ -19,7 +20,7 @@ st.info("⏰ Horario: Sábados y Domingos a partir de las 6:00 PM")
 # FUNCIONES DE JORNADA Y BORRADO AUTOMÁTICO A LAS 2:00 AM
 # ---------------------------------------------------------
 def get_jornada_actual():
-    now = datetime.now()
+    now = datetime.now(ZoneInfo('America/Mexico_City'))
     if now.hour < 2:
         jornada_fecha = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     else:
@@ -89,15 +90,7 @@ def cargar_db():
     else:
         db_data = default_db
 
-    jornada_hoy = get_jornada_actual()
-    if db_data.get("ultima_jornada") != jornada_hoy:
-        pedidos_filtrados = [
-            p for p in db_data.get("pedidos", [])
-            if p.get("jornada") == jornada_hoy
-        ]
-        db_data["pedidos"] = pedidos_filtrados
-        db_data["ultima_jornada"] = jornada_hoy
-        guardar_db(db_data)
+    # Sin borrado automático (se realiza manualmente desde el panel)
 
     return db_data
 
@@ -110,7 +103,7 @@ def guardar_db(db):
 
 def generar_html_ticket(p):
     folio = p.get("folio", "N/A")
-    fecha = p.get("fecha_hora", datetime.now().strftime("%d/%m/%Y %H:%M"))
+    fecha = p.get("fecha_hora", datetime.now(ZoneInfo('America/Mexico_City')).strftime("%d/%m/%Y %H:%M"))
     nombre = p.get("nombre", "Cliente")
     telefono = p.get("telefono", "N/A")
     tipo_entrega = p.get("tipo_entrega", "Local")
@@ -304,7 +297,7 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
                 folio_asignado = db_actual.get("contador_folio", 1001)
                 db_actual["contador_folio"] = folio_asignado + 1
 
-                fecha_hora_str = datetime.now().strftime("%d/%m/%Y %H:%M")
+                fecha_hora_str = datetime.now(ZoneInfo('America/Mexico_City')).strftime("%d/%m/%Y %H:%M")
                 jornada_actual = get_jornada_actual()
 
                 pedido_completo = {
@@ -376,7 +369,7 @@ elif modo == "👑 Panel Propietario":
 
                 col_refresh1, col_refresh2 = st.columns([3, 1])
                 with col_refresh1:
-                    st.caption(f"⏱️ Última sincronización: {datetime.now().strftime('%H:%M:%S')} (Actualizando en vivo...)")
+                    st.caption(f"⏱️ Última sincronización: {datetime.now(ZoneInfo('America/Mexico_City')).strftime('%H:%M:%S')} (Actualizando en vivo...)")
                 with col_refresh2:
                     if st.button("🔄 Actualizar ahora", key="btn_manual_refresh_tab1", use_container_width=True):
                         st.rerun()
@@ -597,7 +590,7 @@ elif modo == "👑 Panel Propietario":
                         folio_pos = db_actual.get("contador_folio", 1001)
                         db_actual["contador_folio"] = folio_pos + 1
                         
-                        fecha_hora_pos = datetime.now().strftime("%d/%m/%Y %H:%M")
+                        fecha_hora_pos = datetime.now(ZoneInfo('America/Mexico_City')).strftime("%d/%m/%Y %H:%M")
                         jornada_pos = get_jornada_actual()
 
                         pedido_pos = {
