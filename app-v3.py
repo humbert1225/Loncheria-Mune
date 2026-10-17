@@ -367,105 +367,113 @@ elif modo == "👑 Panel Propietario":
         # TAB 1: HISTORIAL DE PEDIDOS Y ESTADOS
         with tab1:
             st.markdown("### 📥 Historial Privado de Pedidos del Día")
-            st.caption("🔒 Los pedidos se borran automáticamente después de las 2:00 AM diario.")
-            
-            db_fresca = cargar_db()
-            pedidos_lista = db_fresca.get("pedidos", [])
+            st.caption("🔒 Los pedidos se borran automáticamente después de las 2:00 AM diario. ⚡ **Auto-actualización en vivo cada 5 segundos activa**.")
 
-            if st.button("🔄 Actualizar lista de pedidos"):
-                st.rerun()
+            @st.fragment(run_every=5)
+            def render_tab1_pedidos():
+                db_fresca = cargar_db()
+                pedidos_lista = db_fresca.get("pedidos", [])
 
-            if not pedidos_lista:
-                st.info("Aún no hay pedidos registrados para la jornada de hoy.")
-            else:
-                total_acumulado = sum(p["total_general"] for p in pedidos_lista)
-                c1, c2 = st.columns(2)
-                c1.metric("Pedidos Recibidos Hoy", len(pedidos_lista))
-                c2.metric("Venta Acumulada", f"${total_acumulado} MXN")
+                col_refresh1, col_refresh2 = st.columns([3, 1])
+                with col_refresh1:
+                    st.caption(f"⏱️ Última sincronización: {datetime.now().strftime('%H:%M:%S')} (Actualizando en vivo...)")
+                with col_refresh2:
+                    if st.button("🔄 Actualizar ahora", key="btn_manual_refresh_tab1", use_container_width=True):
+                        st.rerun()
 
-                st.write("")
-                with st.expander("🗑️ Limpiar / Borrar Todos los Pedidos del Día", expanded=False):
-                    st.warning("⚠️ Esta acción borrará permanentemente todos los pedidos registrados en el sistema.")
-                    clave_limpieza = st.text_input("Ingresa la clave de propietario para confirmar:", type="password", key="pwd_limpiar_pedidos")
-                    if st.button("🚨 Confirmar y Borrar Pedidos", type="primary", key="btn_confirmar_limpieza"):
-                        if clave_limpieza == CLAVE_ADMIN:
-                            db_fresca["pedidos"] = []
-                            guardar_db(db_fresca)
-                            st.success("🎉 ¡Todos los pedidos han sido eliminados con éxito!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Clave de propietario incorrecta. No se borraron los pedidos.")
+                if not pedidos_lista:
+                    st.info("Aún no hay pedidos registrados para la jornada de hoy.")
+                else:
+                    total_acumulado = sum(p["total_general"] for p in pedidos_lista)
+                    c1, c2 = st.columns(2)
+                    c1.metric("Pedidos Recibidos Hoy", len(pedidos_lista))
+                    c2.metric("Venta Acumulada", f"${total_acumulado} MXN")
 
-                st.divider()
+                    st.write("")
+                    with st.expander("🗑️ Limpiar / Borrar Todos los Pedidos del Día", expanded=False):
+                        st.warning("⚠️ Esta acción borrará permanentemente todos los pedidos registrados en el sistema.")
+                        clave_limpieza = st.text_input("Ingresa la clave de propietario para confirmar:", type="password", key="pwd_limpiar_pedidos")
+                        if st.button("🚨 Confirmar y Borrar Pedidos", type="primary", key="btn_confirmar_limpieza"):
+                            if clave_limpieza == CLAVE_ADMIN:
+                                db_fresca["pedidos"] = []
+                                guardar_db(db_fresca)
+                                st.success("🎉 ¡Todos los pedidos han sido eliminados con éxito!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Clave de propietario incorrecta. No se borraron los pedidos.")
 
-                for idx, p in enumerate(reversed(pedidos_lista)):
-                    fol_id = p.get("folio", idx)
-                    estado_actual = p.get("estado", "Pendiente")
-                    
-                    with st.container():
-                        st.markdown(f"### 🏷️ Pedido Folio #{fol_id} - {p['nombre']} (💰 Total: **${p['total_general']} MXN**)")
+                    st.divider()
+
+                    for idx, p in enumerate(reversed(pedidos_lista)):
+                        fol_id = p.get("folio", idx)
+                        estado_actual = p.get("estado", "Pendiente")
                         
-                        col_est1, col_est2 = st.columns([2, 1])
-                        with col_est1:
-                            st.caption(f"📍 Origen: **{p.get('origen', 'Web')}** | 🛵 Modalidad: **{p.get('tipo_entrega', 'N/A')}** | 🕒 Hora: **{p.get('fecha_hora', '')}**")
-                        with col_est2:
-                            if estado_actual == "Entregado":
-                                st.success("🟢 ENTREGADO")
+                        with st.container():
+                            st.markdown(f"### 🏷️ Pedido Folio #{fol_id} - {p['nombre']} (💰 Total: **${p['total_general']} MXN**)")
+                            
+                            col_est1, col_est2 = st.columns([2, 1])
+                            with col_est1:
+                                st.caption(f"📍 Origen: **{p.get('origen', 'Web')}** | 🛵 Modalidad: **{p.get('tipo_entrega', 'N/A')}** | 🕒 Hora: **{p.get('fecha_hora', '')}**")
+                            with col_est2:
+                                if estado_actual == "Entregado":
+                                    st.success("🟢 ENTREGADO")
+                                else:
+                                    st.warning("🔴 PENDIENTE")
+
+                            # Botón para cambiar el estado de entrega
+                            col_b_est1, col_b_est2 = st.columns([1, 1])
+                            with col_b_est1:
+                                if estado_actual != "Entregado":
+                                    if st.button("✅ Marcar como Entregado", key=f"btn_ent_{fol_id}"):
+                                        p["estado"] = "Entregado"
+                                        guardar_db(db_fresca)
+                                        st.success(f"Pedido #{fol_id} marcado como Entregado")
+                                        st.rerun()
+                                else:
+                                    if st.button("↩️ Cambiar a Pendiente", key=f"btn_pend_{fol_id}"):
+                                        p["estado"] = "Pendiente"
+                                        guardar_db(db_fresca)
+                                        st.rerun()
+
+                            if p.get("telefono"):
+                                st.write(f"📞 **Teléfono:** [{p['telefono']}](tel:{p['telefono']})")
+
+                            if p.get("tipo_entrega") == "🛵 Enviar a domicilio" or (p.get("domicilio") and p.get("domicilio") not in ["Recoger en local", "Atención en Local"]):
+                                st.write(f"🏠 **Domicilio:** {p['domicilio']}")
+                                encoded_address = urllib.parse.quote(p['domicilio'])
+                                gmaps_url = "https://" + "www.google.com/maps/search/?api=1&query=" + encoded_address
+                                st.link_button("🗺️ Abrir en Google Maps", gmaps_url)
+
+                                st.caption("📍 Ubicación en mapa:")
+                                map_embed_url = "https://" + "maps.google.com/maps?q=" + encoded_address + "&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                                components.html(
+                                    f'<iframe width="100%" height="220" frameborder="0" src="{map_embed_url}"></iframe>',
+                                    height=230
+                                )
                             else:
-                                st.warning("🔴 PENDIENTE")
+                                st.info("🏪 **Entrega:** Para atender en el local / Recoger.")
 
-                        # Botón para cambiar el estado de entrega
-                        col_b_est1, col_b_est2 = st.columns([1, 1])
-                        with col_b_est1:
-                            if estado_actual != "Entregado":
-                                if st.button("✅ Marcar como Entregado", key=f"btn_ent_{fol_id}"):
-                                    p["estado"] = "Entregado"
-                                    guardar_db(db_fresca)
-                                    st.success(f"Pedido #{fol_id} marcado como Entregado")
-                                    st.rerun()
-                            else:
-                                if st.button("↩️ Cambiar a Pendiente", key=f"btn_pend_{fol_id}"):
-                                    p["estado"] = "Pendiente"
-                                    guardar_db(db_fresca)
-                                    st.rerun()
+                            st.write("**Detalle por Órdenes:**")
+                            for ord_d in p["ordenes"]:
+                                st.markdown(f"**📦 Orden #{ord_d['num_orden']} (Subtotal: ${ord_d['total_orden']} MXN):**")
+                                for it in ord_d["items"]:
+                                    st.write(f" - {it['descripcion']} → **${it['subtotal']} MXN**")
+                                if ord_d.get("nota"):
+                                    st.write(f"   *Detalles/Especificación:* 📝 **{ord_d['nota']}**")
 
-                        if p.get("telefono"):
-                            st.write(f"📞 **Teléfono:** [{p['telefono']}](tel:{p['telefono']})")
+                            if p.get("costo_envio", 0) > 0:
+                                st.write(f"🛵 **Costo de envío a domicilio:** $15 MXN")
 
-                        if p.get("tipo_entrega") == "🛵 Enviar a domicilio" or (p.get("domicilio") and p.get("domicilio") not in ["Recoger en local", "Atención en Local"]):
-                            st.write(f"🏠 **Domicilio:** {p['domicilio']}")
-                            encoded_address = urllib.parse.quote(p['domicilio'])
-                            gmaps_url = "https://" + "www.google.com/maps/search/?api=1&query=" + encoded_address
-                            st.link_button("🗺️ Abrir en Google Maps", gmaps_url)
+                            if p.get("notas_generales"):
+                                st.write(f"**Instrucciones generales:** {p['notas_generales']}")
 
-                            st.caption("📍 Ubicación en mapa:")
-                            map_embed_url = "https://" + "maps.google.com/maps?q=" + encoded_address + "&t=&z=15&ie=UTF8&iwloc=&output=embed"
-                            components.html(
-                                f'<iframe width="100%" height="220" frameborder="0" src="{map_embed_url}"></iframe>',
-                                height=230
-                            )
-                        else:
-                            st.info("🏪 **Entrega:** Para atender en el local / Recoger.")
+                            # OPCIÓN DE IMPRIMIR TICKET EN CADA PEDIDO DEL PANEL PROPIETARIO
+                            with st.expander(f"🖨️ Opción de Imprimir Ticket (Folio #{fol_id})", expanded=False):
+                                components.html(generar_html_ticket(p), height=440, scrolling=True)
 
-                        st.write("**Detalle por Órdenes:**")
-                        for ord_d in p["ordenes"]:
-                            st.markdown(f"**📦 Orden #{ord_d['num_orden']} (Subtotal: ${ord_d['total_orden']} MXN):**")
-                            for it in ord_d["items"]:
-                                st.write(f" - {it['descripcion']} → **${it['subtotal']} MXN**")
-                            if ord_d.get("nota"):
-                                st.write(f"   *Detalles/Especificación:* 📝 **{ord_d['nota']}**")
+                            st.divider()
 
-                        if p.get("costo_envio", 0) > 0:
-                            st.write(f"🛵 **Costo de envío a domicilio:** $15 MXN")
-
-                        if p.get("notas_generales"):
-                            st.write(f"**Instrucciones generales:** {p['notas_generales']}")
-
-                        # OPCIÓN DE IMPRIMIR TICKET EN CADA PEDIDO DEL PANEL PROPIETARIO
-                        with st.expander(f"🖨️ Opción de Imprimir Ticket (Folio #{fol_id})", expanded=False):
-                            components.html(generar_html_ticket(p), height=440, scrolling=True)
-
-                        st.divider()
+            render_tab1_pedidos()
 
         # TAB 2: PUNTO DE VENTA (POS)
         with tab2:
