@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Lonchería Muñe - Pedidos y POS", page_icon="🌮", layout="centered")
 
-CLAVE_ADMIN = "mune2402"
+CLAVE_ADMIN = "13junio97"
 DATA_FILE = "pedidos_data.json"
 COSTO_ENVIO = 15
 
