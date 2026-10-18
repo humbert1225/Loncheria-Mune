@@ -3,6 +3,7 @@ import streamlit.components.v1 as components
 import urllib.parse
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -17,7 +18,7 @@ st.caption("📍 Calle 13 de Junio #97, San Antonio Matute | 📞 Tel: 375758414
 st.info("⏰ Horario: Sábados y Domingos a partir de las 6:00 PM")
 
 # ---------------------------------------------------------
-# FUNCIONES DE JORNADA Y BORRADO AUTOMÁTICO A LAS 2:00 AM
+# FUNCIONES DE PERSISTENCIA Y BASE DE DATOS
 # ---------------------------------------------------------
 def get_jornada_actual():
     now = datetime.now(ZoneInfo('America/Mexico_City'))
@@ -30,7 +31,6 @@ def get_jornada_actual():
 def cargar_db():
     default_db = {
         "contador_folio": 1001,
-        "ultima_jornada": get_jornada_actual(),
         "pedidos": [],
         "menu": {
             "Tacos": [
@@ -90,8 +90,6 @@ def cargar_db():
     else:
         db_data = default_db
 
-    # Sin borrado automático (se realiza manualmente desde el panel)
-
     return db_data
 
 def guardar_db(db):
@@ -111,6 +109,7 @@ def generar_html_ticket(p):
     subtotal_platillos = p.get("subtotal_platillos", p.get("total_general", 0))
     costo_envio = p.get("costo_envio", 0)
     total_general = p.get("total_general", 0)
+    estado_pago = p.get("estado_pago", "No Pagado")
 
     filas_ordenes = ""
     for ord_d in p.get("ordenes", []):
@@ -128,6 +127,8 @@ def generar_html_ticket(p):
     if costo_envio > 0:
         html_envio = f'<div style="display:flex; justify-content:space-between; font-size:12px;"><span>Envío a domicilio:</span><span>${costo_envio} MXN</span></div>'
 
+    pago_label = "💳 PAGADO" if estado_pago == "Pagado" else "💵 NO PAGADO"
+
     html_code = f"""
     <div id="ticket-{folio}" style="font-family: 'Courier New', Courier, monospace; width: 280px; padding: 12px; border: 1px dashed #333; background-color: #fff; color: #000; margin: 0 auto; border-radius: 4px;">
         <h3 style="text-align: center; margin: 0; font-size: 16px;">🌮 LONCHERÍA MUÑE</h3>
@@ -140,6 +141,7 @@ def generar_html_ticket(p):
         <p style="font-size: 12px; margin: 2px 0;"><b>TELÉFONO:</b> {telefono}</p>
         <p style="font-size: 12px; margin: 2px 0;"><b>ENTREGA:</b> {tipo_entrega}</p>
         {html_domicilio}
+        <p style="font-size: 12px; margin: 2px 0;"><b>ESTADO PAGO:</b> {pago_label}</p>
         <hr style="border-top: 1px dashed #000; margin: 6px 0;">
         {filas_ordenes}
         <hr style="border-top: 1px dashed #000; margin: 6px 0;">
@@ -276,6 +278,9 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
             telefono = st.text_input("Número de teléfono de contacto (Obligatorio) *")
             
             domicilio = ""
+            calle = ""
+            num_ext = ""
+            num_int = ""
             if "Enviar a domicilio" in tipo_entrega:
                 st.markdown("**Datos del Domicilio de Entrega:**")
                 col_d1, col_d2, col_d3 = st.columns([2, 1, 1])
@@ -315,6 +320,7 @@ if modo == "🛍️ Hacer Pedido (Cliente)":
                     "fecha_hora": fecha_hora_str,
                     "origen": "Web Cliente",
                     "estado": "Pendiente",
+                    "estado_pago": "No Pagado",
                     "nombre": nombre.strip(),
                     "tipo_entrega": "🛵 Enviar a domicilio" if "Enviar a domicilio" in tipo_entrega else "🏪 Recoger en el local",
                     "domicilio": domicilio.strip() if "Enviar a domicilio" in tipo_entrega else "Recoger en local",
@@ -369,7 +375,7 @@ elif modo == "👑 Panel Propietario":
         # TAB 1: HISTORIAL DE PEDIDOS Y ESTADOS
         with tab1:
             st.markdown("### 📥 Historial Privado de Pedidos del Día")
-            st.caption("🔒 Los pedidos se borran automáticamente después de las 2:00 AM diario. ⚡ **Auto-actualización en vivo cada 5 segundos activa**.")
+            st.caption("🔒 Acceso exclusivo. ⚡ **Auto-actualización en vivo cada 5 segundos activa**.")
 
             @st.fragment(run_every=5)
             def render_tab1_pedidos():
@@ -409,11 +415,12 @@ elif modo == "👑 Panel Propietario":
                     for idx, p in enumerate(reversed(pedidos_lista)):
                         fol_id = p.get("folio", idx)
                         estado_actual = p.get("estado", "Pendiente")
+                        estado_pago_actual = p.get("estado_pago", "No Pagado")
                         
                         with st.container():
                             st.markdown(f"### 🏷️ Pedido Folio #{fol_id} - {p['nombre']} (💰 Total: **${p['total_general']} MXN**)")
                             
-                            col_est1, col_est2 = st.columns([2, 1])
+                            col_est1, col_est2, col_est3 = st.columns([2, 1, 1])
                             with col_est1:
                                 st.caption(f"📍 Origen: **{p.get('origen', 'Web')}** | 🛵 Modalidad: **{p.get('tipo_entrega', 'N/A')}** | 🕒 Hora: **{p.get('fecha_hora', '')}**")
                             with col_est2:
@@ -421,19 +428,35 @@ elif modo == "👑 Panel Propietario":
                                     st.success("🟢 ENTREGADO")
                                 else:
                                     st.warning("🔴 PENDIENTE")
+                            with col_est3:
+                                if estado_pago_actual == "Pagado":
+                                    st.success("💳 PAGADO")
+                                else:
+                                    st.error("💵 NO PAGADO")
 
-                            # Botón para cambiar el estado de entrega
+                            # Botones para cambiar el estado de entrega y de pago
                             col_b_est1, col_b_est2 = st.columns([1, 1])
                             with col_b_est1:
                                 if estado_actual != "Entregado":
                                     if st.button("✅ Marcar como Entregado", key=f"btn_ent_{fol_id}"):
                                         p["estado"] = "Entregado"
                                         guardar_db(db_fresca)
-                                        st.success(f"Pedido #{fol_id} marcado como Entregado")
                                         st.rerun()
                                 else:
                                     if st.button("↩️ Cambiar a Pendiente", key=f"btn_pend_{fol_id}"):
                                         p["estado"] = "Pendiente"
+                                        guardar_db(db_fresca)
+                                        st.rerun()
+
+                            with col_b_est2:
+                                if estado_pago_actual != "Pagado":
+                                    if st.button("💵 Marcar como Pagado", key=f"btn_pag_{fol_id}"):
+                                        p["estado_pago"] = "Pagado"
+                                        guardar_db(db_fresca)
+                                        st.rerun()
+                                else:
+                                    if st.button("↩️ Cambiar a No Pagado", key=f"btn_nopag_{fol_id}"):
+                                        p["estado_pago"] = "No Pagado"
                                         guardar_db(db_fresca)
                                         st.rerun()
 
@@ -442,23 +465,13 @@ elif modo == "👑 Panel Propietario":
 
                             if p.get("tipo_entrega") == "🛵 Enviar a domicilio" or (p.get("domicilio") and p.get("domicilio") not in ["Recoger en local", "Atención en Local"]):
                                 st.write(f"🏠 **Domicilio:** {p['domicilio']}")
-                                encoded_address = urllib.parse.quote(p['domicilio'])
-                                gmaps_url = "https://" + "www.google.com/maps/search/?api=1&query=" + encoded_address
-                                st.link_button("🗺️ Abrir en Google Maps", gmaps_url)
-
-                                st.caption("📍 Ubicación en mapa:")
-                                map_embed_url = "https://" + "maps.google.com/maps?q=" + encoded_address + "&t=&z=15&ie=UTF8&iwloc=&output=embed"
-                                components.html(
-                                    f'<iframe width="100%" height="220" frameborder="0" src="{map_embed_url}"></iframe>',
-                                    height=230
-                                )
                             else:
                                 st.info("🏪 **Entrega:** Para atender en el local / Recoger.")
 
                             st.write("**Detalle por Órdenes:**")
-                            for ord_d in p["ordenes"]:
+                            for ord_d in p.get("ordenes", []):
                                 st.markdown(f"**📦 Orden #{ord_d['num_orden']} (Subtotal: ${ord_d['total_orden']} MXN):**")
-                                for it in ord_d["items"]:
+                                for it in ord_d.get("items", []):
                                     st.write(f" - {it['descripcion']} → **${it['subtotal']} MXN**")
                                 if ord_d.get("nota"):
                                     st.write(f"   *Detalles/Especificación:* 📝 **{ord_d['nota']}**")
@@ -468,6 +481,91 @@ elif modo == "👑 Panel Propietario":
 
                             if p.get("notas_generales"):
                                 st.write(f"**Instrucciones generales:** {p['notas_generales']}")
+
+                            # SECCIÓN DE EDICIÓN Y MODIFICACIÓN DE PRODUCTOS EN EL PEDIDO
+                            with st.expander(f"✏️ Editar Productos / Cantidades en Pedido #{fol_id}", expanded=False):
+                                st.markdown("##### 🛒 Modificar o Eliminar Productos Existentes")
+                                items_modificados = False
+                                
+                                for ord_d in p.get("ordenes", []):
+                                    st.caption(f"📦 **Orden #{ord_d['num_orden']}**")
+                                    items_restantes = []
+                                    for it_idx, it in enumerate(ord_d.get("items", [])):
+                                        c_it1, c_it2, c_it3 = st.columns([3, 2, 1])
+                                        with c_it1:
+                                            st.write(f"• **{it['descripcion']}**")
+                                        with c_it2:
+                                            # Calculamos precio unitario aproximado
+                                            p_unit = int(it['subtotal'] / it['cantidad']) if it['cantidad'] > 0 else 0
+                                            nueva_cant = st.number_input(
+                                                "Cantidad", min_value=0, max_value=50, value=it['cantidad'],
+                                                key=f"edit_qty_{fol_id}_{ord_d['num_orden']}_{it_idx}"
+                                            )
+                                            if nueva_cant != it['cantidad']:
+                                                items_modificados = True
+                                                if nueva_cant > 0:
+                                                    it['cantidad'] = nueva_cant
+                                                    it['subtotal'] = nueva_cant * p_unit
+                                                    it['descripcion'] = re.sub(r'^\d+x', f'{nueva_cant}x', it['descripcion'])
+                                                    items_restantes.append(it)
+                                                # si es 0, no lo agregamos a items_restantes (se elimina)
+                                            else:
+                                                items_restantes.append(it)
+                                        with c_it3:
+                                            if st.button("🗑️", key=f"del_item_{fol_id}_{ord_d['num_orden']}_{it_idx}"):
+                                                items_modificados = True
+                                                # No incluir este elemento
+                                                if it in items_restantes:
+                                                    items_restantes.remove(it)
+                                    
+                                    ord_d["items"] = items_restantes
+                                    ord_d["total_orden"] = sum(x["subtotal"] for x in ord_d["items"])
+
+                                st.markdown("---")
+                                st.markdown("##### ➕ Agregar un Producto Nuevo a este Pedido")
+                                col_add1, col_add2, col_add3 = st.columns([2, 2, 1])
+                                with col_add1:
+                                    cat_add = st.selectbox("Categoría", list(db_fresca["menu"].keys()), key=f"add_cat_{fol_id}")
+                                with col_add2:
+                                    prods_cat = [pr for pr in db_fresca["menu"][cat_add] if pr["disponible"]]
+                                    nombres_prods = [pr["nombre"] for pr in prods_cat] if prods_cat else ["(Sin disponibles)"]
+                                    prod_add_nom = st.selectbox("Producto", nombres_prods, key=f"add_prod_{fol_id}")
+                                with col_add3:
+                                    cant_add = st.number_input("Cantidad", min_value=1, max_value=20, value=1, key=f"add_cant_{fol_id}")
+
+                                if st.button("➕ Añadir Producto al Pedido", key=f"btn_add_prod_to_{fol_id}", type="primary"):
+                                    if prod_add_nom != "(Sin disponibles)":
+                                        prod_obj = next((pr for pr in prods_cat if pr["nombre"] == prod_add_nom), None)
+                                        if prod_obj:
+                                            precio_u = prod_obj["precio"]
+                                            subt = cant_add * precio_u
+                                            if cat_add in ["Especialidades", "Bebidas"]:
+                                                desc_new = f"{cant_add}x {prod_add_nom}"
+                                            else:
+                                                cat_lbl = cat_add.rstrip("s")
+                                                desc_new = f"{cant_add}x {cat_lbl} de {prod_add_nom}"
+                                            
+                                            new_item = {
+                                                "descripcion": desc_new,
+                                                "subtotal": subt,
+                                                "cantidad": cant_add
+                                            }
+                                            
+                                            if not p.get("ordenes"):
+                                                p["ordenes"] = [{"num_orden": 1, "items": [], "nota": "", "total_orden": 0}]
+                                            
+                                            p["ordenes"][0]["items"].append(new_item)
+                                            p["ordenes"][0]["total_orden"] = sum(x["subtotal"] for x in p["ordenes"][0]["items"])
+                                            
+                                            items_modificados = True
+
+                                if items_modificados:
+                                    # Recalculamos subtotales generales
+                                    p["subtotal_platillos"] = sum(ord_d["total_orden"] for ord_d in p.get("ordenes", []))
+                                    p["total_general"] = p["subtotal_platillos"] + p.get("costo_envio", 0)
+                                    guardar_db(db_fresca)
+                                    st.success(f"🎉 ¡Pedido #{fol_id} actualizado correctamente!")
+                                    st.rerun()
 
                             # OPCIÓN DE IMPRIMIR TICKET EN CADA PEDIDO DEL PANEL PROPIETARIO
                             with st.expander(f"🖨️ Opción de Imprimir Ticket (Folio #{fol_id})", expanded=False):
@@ -582,6 +680,9 @@ elif modo == "👑 Panel Propietario":
                     nombre_pos = st.text_input("Nombre del cliente / Referencia de mesa *")
                     telefono_pos = st.text_input("Número de teléfono de contacto (Opcional)")
                     domicilio_pos = ""
+                    calle_pos = ""
+                    num_ext_pos = ""
+                    num_int_pos = ""
                     if "Enviar a domicilio" in tipo_entrega_pos:
                         st.markdown("**Datos del Domicilio de Entrega:**")
                         col_pd1, col_pd2, col_pd3 = st.columns([2, 1, 1])
@@ -617,6 +718,7 @@ elif modo == "👑 Panel Propietario":
                             "fecha_hora": fecha_hora_pos,
                             "origen": "POS Local Directo",
                             "estado": "Entregado" if "Atención" in tipo_entrega_pos else "Pendiente",
+                            "estado_pago": "Pagado",
                             "nombre": nombre_pos.strip(),
                             "tipo_entrega": "🛵 Enviar a domicilio" if "Enviar a domicilio" in tipo_entrega_pos else "🏪 Venta Directa en Local",
                             "domicilio": domicilio_pos.strip() if "Enviar a domicilio" in tipo_entrega_pos else "Atención en Local",
