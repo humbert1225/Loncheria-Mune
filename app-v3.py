@@ -662,106 +662,204 @@ elif modo == "👑 Panel Propietario":
 
             render_tab1_pedidos()
 
-        # TAB 2: PUNTO DE VENTA (POS)
+        # TAB 2: PUNTO DE VENTA (POS LOCAL)
         with tab2:
-            col_pos_head1, col_pos_head2 = st.columns([2, 1])
-            with col_pos_head1:
-                st.markdown("### 🖥️ Punto de Venta (POS Local)")
-            with col_pos_head2:
-                if st.button("🔄 Comenzar Nuevo Pedido", key="btn_reset_pos_top", use_container_width=True, type="primary"):
-                    st.session_state.num_ordenes_pos = 1
-                    st.session_state.pos_version += 1
-                    st.rerun()
+            st.markdown("### 🖥️ Punto de Venta Rápido (POS Local)")
+            st.caption("⚡ **Sistema de Venta Rápida:** Busca categorías o productos, selecciona la cantidad y agrégalos al pedido con un clic.")
 
-            st.caption("Usa este botón o guarda la orden actual para iniciar un nuevo pedido en el local.")
-            v_pos = st.session_state.pos_version
+            if "pos_cart" not in st.session_state:
+                st.session_state.pos_cart = []
+            if "num_ordenes_pos" not in st.session_state:
+                st.session_state.num_ordenes_pos = 1
 
-            col_pos_b1, col_pos_b2 = st.columns([1, 1])
-            with col_pos_b1:
-                if st.button("➕ Agregar otra orden al pedido POS", key="pos_add_ord", use_container_width=True):
+            c_top1, c_top2 = st.columns([3, 1])
+            with c_top1:
+                if st.button("➕ Añadir otra Orden/Persona al Ticket", key="pos_add_num_ord"):
                     st.session_state.num_ordenes_pos += 1
                     st.rerun()
-            with col_pos_b2:
-                if st.session_state.num_ordenes_pos > 1:
-                    if st.button("🗑️ Eliminar última orden POS", key="pos_del_ord", use_container_width=True):
-                        st.session_state.num_ordenes_pos -= 1
-                        st.rerun()
-
-            ordenes_pos_construidas = []
-            subtotal_pos_platillos = 0
-            total_pos_articulos = 0
-
-            for ord_idx in range(1, st.session_state.num_ordenes_pos + 1):
-                with st.expander(f"📦 ORDEN POS #{ord_idx}", expanded=True):
-                    items_esta_orden = []
-                    total_esta_orden = 0
-
-                    for cat, prods in db["menu"].items():
-                        with st.expander(f"📌 {cat}", expanded=False):
-                            for prod in prods:
-                                nombre_p = prod["nombre"]
-                                precio_p = prod["precio"]
-                                disp = prod["disponible"]
-                                key_id = f"pos_v{v_pos}_ord_{ord_idx}_{cat}_{nombre_p}"
-
-                                if not disp:
-                                    st.caption(f"❌ {nombre_p} - (AGOTADO)")
-                                else:
-                                    cant = st.number_input(
-                                        f"{nombre_p} (${precio_p} MXN)",
-                                        min_value=0, max_value=20, value=0,
-                                        key=key_id
-                                    )
-                                    if cant > 0:
-                                        subtotal = cant * precio_p
-                                        if cat in ["Especialidades", "Bebidas"]:
-                                            desc = f"{cant}x {nombre_p}"
-                                        else:
-                                            cat_label = cat.rstrip("s")
-                                            desc = f"{cant}x {cat_label} de {nombre_p}"
-                                        items_esta_orden.append({
-                                            "descripcion": desc,
-                                            "subtotal": subtotal,
-                                            "cantidad": cant
-                                        })
-                                        total_esta_orden += subtotal
-                                        total_pos_articulos += cant
-
-                    nota_orden_pos = st.text_input(
-                        f"📝 Detalles / Especificaciones para la Orden POS #{ord_idx} (ej: sin salsa verde, sin cebolla)",
-                        key=f"pos_v{v_pos}_nota_ord_{ord_idx}",
-                        placeholder="Ej: sin salsa verde, bien dorado..."
-                    )
-
-                    if items_esta_orden:
-                        ordenes_pos_construidas.append({
-                            "num_orden": ord_idx,
-                            "items": items_esta_orden,
-                            "nota": nota_orden_pos.strip(),
-                            "total_orden": total_esta_orden
-                        })
-                        subtotal_pos_platillos += total_esta_orden
-                        st.info(f"Subtotal Orden POS #{ord_idx}: **${total_esta_orden} MXN**")
+            with c_top2:
+                if st.button("🗑️ Vaciar Carrito POS", key="pos_clear_cart_top", type="secondary"):
+                    st.session_state.pos_cart = []
+                    st.session_state.num_ordenes_pos = 1
+                    st.toast("🧹 Carrito vaciado")
+                    st.rerun()
 
             st.divider()
 
-            if total_pos_articulos == 0:
-                st.info("💡 Selecciona los productos de la orden en las categorías desplegables arriba.")
+            # -----------------------------------------------------
+            # 🔍 BUSCADOR DE CATEGORÍAS Y PRODUCTOS
+            # -----------------------------------------------------
+            st.markdown("#### 🔍 Buscador de Menú Rápido")
+            col_search, col_ord_target = st.columns([3, 1])
+            with col_search:
+                query_pos = st.text_input(
+                    "Escribe la categoría o nombre del producto (ej: 'tac', 'lonche', 'asada', 'bebidas', 'quesadilla')...",
+                    placeholder="🔍 Buscar por categoría o producto...",
+                    key="input_busqueda_pos"
+                )
+            with col_ord_target:
+                orden_destino = st.selectbox(
+                    "Agregar a:",
+                    [f"Orden #{i}" for i in range(1, st.session_state.num_ordenes_pos + 1)],
+                    key="select_orden_destino_pos"
+                )
+                num_ord_destino = int(orden_destino.replace("Orden #", ""))
+
+            def norm_text(txt):
+                if not txt:
+                    return ""
+                import unicodedata
+                return unicodedata.normalize('NFD', txt).encode('ascii', 'ignore').decode('utf-8').lower().strip()
+
+            q_norm = norm_text(query_pos)
+
+            menu_completo = db["menu"]
+            categorias_filtradas = {}
+
+            for cat, prods in menu_completo.items():
+                cat_norm = norm_text(cat)
+                match_cat = q_norm in cat_norm if q_norm else True
+                
+                prods_coincidentes = []
+                for p_item in prods:
+                    if not p_item.get("disponible", True):
+                        continue
+                    prod_norm = norm_text(p_item["nombre"])
+                    if match_cat or (q_norm and q_norm in prod_norm):
+                        prods_coincidentes.append(p_item)
+
+                if prods_coincidentes:
+                    categorias_filtradas[cat] = prods_coincidentes
+
+            st.markdown("##### 🛒 Productos Disponibles")
+
+            if not categorias_filtradas:
+                st.warning(f"❌ No se encontraron productos o categorías que coincidan con '{query_pos}'.")
             else:
+                for cat_nombre, productos_lista in categorias_filtradas.items():
+                    with st.expander(f"📌 {cat_nombre} ({len(productos_lista)} productos)", expanded=True if q_norm else False):
+                        for p_item in productos_lista:
+                            p_nom = p_item["nombre"]
+                            p_precio = p_item["precio"]
+                            key_prefix = f"pos_item_{cat_nombre}_{p_nom}".replace(" ", "_")
+
+                            c_info, c_qty, c_btn = st.columns([3, 1, 1])
+                            with c_info:
+                                st.write(f"**{p_nom}** — `${p_precio} MXN`")
+                            with c_qty:
+                                cant_val = st.number_input(
+                                    "Cant.", min_value=1, max_value=50, value=1,
+                                    key=f"qty_{key_prefix}", label_visibility="collapsed"
+                                )
+                            with c_btn:
+                                if st.button("➕ Agregar", key=f"btn_add_{key_prefix}", type="primary"):
+                                    if cat_nombre in ["Especialidades", "Bebidas"]:
+                                        desc = f"{cant_val}x {p_nom}"
+                                    else:
+                                        cat_lbl = cat_nombre.rstrip("s")
+                                        desc = f"{cant_val}x {cat_lbl} de {p_nom}"
+
+                                    existente = False
+                                    for cart_item in st.session_state.pos_cart:
+                                        if cart_item["num_orden"] == num_ord_destino and cart_item["cat"] == cat_nombre and cart_item["nombre"] == p_nom:
+                                            cart_item["cantidad"] += cant_val
+                                            cart_item["subtotal"] = cart_item["cantidad"] * p_precio
+                                            if cat_nombre in ["Especialidades", "Bebidas"]:
+                                                cart_item["descripcion"] = f"{cart_item['cantidad']}x {p_nom}"
+                                            else:
+                                                cat_lbl = cat_nombre.rstrip("s")
+                                                cart_item["descripcion"] = f"{cart_item['cantidad']}x {cat_lbl} de {p_nom}"
+                                            existente = True
+                                            break
+
+                                    if not existente:
+                                        st.session_state.pos_cart.append({
+                                            "num_orden": num_ord_destino,
+                                            "cat": cat_nombre,
+                                            "nombre": p_nom,
+                                            "precio": p_precio,
+                                            "cantidad": cant_val,
+                                            "subtotal": cant_val * p_precio,
+                                            "descripcion": desc
+                                        })
+                                    st.toast(f"✅ Agregado: {desc} a Orden #{num_ord_destino}")
+                                    st.rerun()
+
+            st.divider()
+
+            # -----------------------------------------------------
+            # 🧾 RESUMEN DEL PEDIDO / CARRITO POS
+            # -----------------------------------------------------
+            st.markdown("### 🛒 Resumen del Pedido POS Actual")
+
+            if not st.session_state.pos_cart:
+                st.info("💡 El carrito está vacío. Busca productos arriba y presiona '➕ Agregar'.")
+            else:
+                subtotal_pos_general = sum(item["subtotal"] for item in st.session_state.pos_cart)
+                total_items_pos = sum(item["cantidad"] for item in st.session_state.pos_cart)
+
+                ordenes_dict = {}
+                for item in st.session_state.pos_cart:
+                    no_ord = item["num_orden"]
+                    if no_ord not in ordenes_dict:
+                        ordenes_dict[no_ord] = []
+                    ordenes_dict[no_ord].append(item)
+
+                notas_por_orden = {}
+
+                for no_ord in sorted(ordenes_dict.keys()):
+                    st.markdown(f"##### 📦 Orden #{no_ord}")
+                    items_ord = ordenes_dict[no_ord]
+                    
+                    for idx_i, item_i in enumerate(items_ord):
+                        c1_c, c2_c, c3_c, c4_c = st.columns([3, 1, 1, 1])
+                        with c1_c:
+                            st.write(f"• {item_i['descripcion']}")
+                        with c2_c:
+                            st.write(f"${item_i['subtotal']} MXN")
+                        with c3_c:
+                            new_qty = st.number_input(
+                                "Cant", min_value=1, max_value=50, value=item_i['cantidad'],
+                                key=f"cart_qty_ord{no_ord}_{idx_i}_{item_i['nombre']}".replace(" ", "_"),
+                                label_visibility="collapsed"
+                            )
+                            if new_qty != item_i['cantidad']:
+                                item_i['cantidad'] = new_qty
+                                item_i['subtotal'] = new_qty * item_i['precio']
+                                if item_i['cat'] in ["Especialidades", "Bebidas"]:
+                                    item_i['descripcion'] = f"{new_qty}x {item_i['nombre']}"
+                                else:
+                                    cat_lbl = item_i['cat'].rstrip("s")
+                                    item_i['descripcion'] = f"{new_qty}x {cat_lbl} de {item_i['nombre']}"
+                                st.rerun()
+                        with c4_c:
+                            if st.button("🗑️", key=f"cart_del_ord{no_ord}_{idx_i}_{item_i['nombre']}".replace(" ", "_")):
+                                st.session_state.pos_cart.remove(item_i)
+                                st.toast("Item eliminado del carrito")
+                                st.rerun()
+
+                    notas_por_orden[no_ord] = st.text_input(
+                        f"📝 Especificaciones / Nota para Orden #{no_ord}:",
+                        placeholder="Ej: sin salsa verde, bien dorado...",
+                        key=f"pos_nota_ord_{no_ord}"
+                    )
+
+                st.divider()
+
                 tipo_entrega_pos = st.radio(
-                    "Modalidad de entrega POS",
+                    "Modalidad de Entrega:",
                     ["🏪 Atención en local / Recoger", "🛵 Enviar a domicilio (+$15 MXN)"],
                     horizontal=True,
-                    key=f"pos_v{v_pos}_tipo_entrega"
+                    key="radio_entrega_pos_cart"
                 )
                 costo_envio_pos = COSTO_ENVIO if "Enviar a domicilio" in tipo_entrega_pos else 0
-                total_pos_general = subtotal_pos_platillos + costo_envio_pos
+                total_pos_final = subtotal_pos_general + costo_envio_pos
 
-                st.success(f"🛒 **Total del Pedido POS: ${total_pos_general} MXN** ({total_pos_articulos} artículos)")
+                st.success(f"💰 **Total a Cobrar POS: ${total_pos_final} MXN** ({total_items_pos} artículos)")
 
-                with st.form("form_pos_registro"):
-                    nombre_pos = st.text_input("Nombre del cliente / Referencia de mesa *")
-                    telefono_pos = st.text_input("Número de teléfono de contacto (Opcional)")
+                with st.form("form_finalizar_pedido_pos"):
+                    nombre_pos = st.text_input("Nombre del Cliente / Mesa *", placeholder="Ej: Juan Pérez / Mesa 3")
+                    telefono_pos = st.text_input("Teléfono de contacto (Opcional)")
 
                     domicilio_pos = ""
                     calle_pos = ""
@@ -769,23 +867,23 @@ elif modo == "👑 Panel Propietario":
                     num_int_pos = ""
 
                     if "Enviar a domicilio" in tipo_entrega_pos:
-                        st.markdown("**Datos del Domicilio de Entrega:**")
+                        st.markdown("**Dirección de Entrega a Domicilio:**")
                         col_pd1, col_pd2, col_pd3 = st.columns([2, 1, 1])
                         with col_pd1:
-                            calle_pos = st.text_input("Nombre de la calle *", key=f"pos_v{v_pos}_calle")
+                            calle_pos = st.text_input("Calle *", key="pos_calle_final")
                         with col_pd2:
-                            num_ext_pos = st.text_input("Número exterior *", key=f"pos_v{v_pos}_num_ext")
+                            num_ext_pos = st.text_input("Num. Ext. *", key="pos_numext_final")
                         with col_pd3:
-                            num_int_pos = st.text_input("Número interior (Opcional)", key=f"pos_v{v_pos}_num_int")
+                            num_int_pos = st.text_input("Num. Int. (Opcional)", key="pos_numint_final")
                         domicilio_pos = f"Calle {calle_pos.strip()} #{num_ext_pos.strip()}" + (f" Int. {num_int_pos.strip()}" if num_int_pos.strip() else "")
 
-                    notas_pos = st.text_area("Instrucciones generales de cocina (Opcional)")
+                    notas_gen_pos = st.text_area("Instrucciones generales para cocina (Opcional)")
 
-                    guardar_pos = st.form_submit_button("💾 Registrar Pedido en el Sistema (POS)", type="primary")
+                    guardar_pos = st.form_submit_button("🚀 Registrar y Cobrar Pedido (POS)", type="primary")
 
                     if guardar_pos:
                         if not nombre_pos.strip():
-                            st.error("❌ El nombre o referencia del cliente es obligatorio.")
+                            st.error("❌ El nombre del cliente o número de mesa es obligatorio.")
                         elif "Enviar a domicilio" in tipo_entrega_pos and (not calle_pos.strip() or not num_ext_pos.strip()):
                             st.error("❌ La calle y número exterior son obligatorios para envíos a domicilio.")
                         else:
@@ -794,6 +892,17 @@ elif modo == "👑 Panel Propietario":
                             db_actual["contador_folio"] = folio_pos + 1
                             fecha_hora_pos = datetime.now(ZoneInfo('America/Mexico_City')).strftime("%d/%m/%Y %H:%M")
                             jornada_pos = get_jornada_actual()
+
+                            ordenes_db = []
+                            for no_o in sorted(ordenes_dict.keys()):
+                                list_it = ordenes_dict[no_o]
+                                ord_subtotal = sum(x["subtotal"] for x in list_it)
+                                ordenes_db.append({
+                                    "num_orden": no_o,
+                                    "items": list_it,
+                                    "nota": notas_por_orden.get(no_o, "").strip(),
+                                    "total_orden": ord_subtotal
+                                })
 
                             pedido_pos = {
                                 "folio": folio_pos,
@@ -806,29 +915,25 @@ elif modo == "👑 Panel Propietario":
                                 "tipo_entrega": "🛵 Enviar a domicilio" if "Enviar a domicilio" in tipo_entrega_pos else "🏪 Venta Directa en Local",
                                 "domicilio": domicilio_pos.strip() if "Enviar a domicilio" in tipo_entrega_pos else "Atención en Local",
                                 "telefono": telefono_pos.strip(),
-                                "ordenes": ordenes_pos_construidas,
-                                "subtotal_platillos": subtotal_pos_platillos,
+                                "ordenes": ordenes_db,
+                                "subtotal_platillos": subtotal_pos_general,
                                 "costo_envio": costo_envio_pos,
-                                "total_general": total_pos_general,
-                                "notas_generales": notas_pos.strip()
+                                "total_general": total_pos_final,
+                                "notas_generales": notas_gen_pos.strip()
                             }
 
                             db_actual["pedidos"].append(pedido_pos)
                             guardar_db(db_actual)
 
+                            st.session_state.pos_cart = []
                             st.session_state.num_ordenes_pos = 1
-                            st.session_state.pos_version += 1
 
                             st.balloons()
                             st.success(f"🎉 ¡Pedido POS registrado con Folio #{folio_pos}!")
 
-                            if st.button("➕ Limpiar pantalla y comenzar otro pedido nuevo", key=f"btn_next_pos_{folio_pos}", type="primary", use_container_width=True):
-                                st.session_state.num_ordenes_pos = 1
-                                st.session_state.pos_version += 1
-                                st.rerun()
-
                             with st.expander(f"🖨️ Imprimir Ticket de Venta POS (Folio #{folio_pos})", expanded=True):
                                 components.html(generar_html_ticket(pedido_pos), height=440, scrolling=True)
+
 
         # TAB 3: PRECIOS, DISPONIBILIDAD Y ELIMINAR PRODUCTOS
         with tab3:
@@ -886,4 +991,3 @@ elif modo == "👑 Panel Propietario":
                         guardar_db(db_actual)
                         st.success(f"🎉 ¡Producto '{nombre_nuevo}' agregado con éxito a la categoría {cat_seleccionada}!")
                         st.rerun()
-
